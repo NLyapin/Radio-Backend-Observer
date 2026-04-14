@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Radio Backend Observer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script>
+    // Apply saved theme + nav state before paint to avoid flash
+    (function () {
+      const t = localStorage.getItem('theme');
+      if (t) document.documentElement.setAttribute('data-theme', t);
+      if (localStorage.getItem('navCollapsed') === '1')
+        document.documentElement.classList.add('nav-collapsed');
+    })();
+  </script>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ───────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-top">
+      <div class="sidebar-logo-icon">
+        <!-- signal / radio wave icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.5a7 7 0 0 1 14 0"/>
+          <path d="M8.5 15.5a3.5 3.5 0 0 1 7 0"/>
+          <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/>
+        </svg>
+      </div>
+      <span class="sidebar-brand">RBO</span>
+    </div>
+
+    <nav id="tabs" class="tabs sidebar-nav">
+      <button data-tab="overview" class="active" data-tooltip="Обзор">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+        </svg>
+        <span class="nav-label">Обзор</span>
+      </button>
+
+      <button data-tab="charts" data-tooltip="Радио графики">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6"  y1="20" x2="6"  y2="14"/>
+          <line x1="3"  y1="20" x2="21" y2="20"/>
+        </svg>
+        <span class="nav-label">Радио графики</span>
+      </button>
+
+      <button data-tab="map" data-tooltip="Карта">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+          <line x1="9"  y1="3"  x2="9"  y2="18"/>
+          <line x1="15" y1="6"  x2="15" y2="21"/>
+        </svg>
+        <span class="nav-label">Карта</span>
+      </button>
+
+      <div class="nav-divider"></div>
+
+      <button data-tab="tunnels" data-tooltip="Туннели">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        <span class="nav-label">Туннели</span>
+      </button>
+
+      <button data-tab="settings" data-tooltip="Настройки">
+        <svg class="nav-icon" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span class="nav-label">Настройки</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="themeToggle" data-tooltip="Сменить тему">
+        <svg class="theme-icon nav-icon" id="themeIcon" viewBox="0 0 24 24">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <span class="theme-label nav-label">Тёмная тема</span>
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- ── App body ───────────────────────────────────────── -->
+  <div class="app-body">
+
+    <header class="topbar">
+      <button class="burger" id="burger" title="Свернуть меню">
+        <span></span><span></span><span></span>
+      </button>
+      <span class="topbar-title">Radio Backend Observer</span>
+      <div class="topbar-spacer"></div>
+      <div class="status-dot" id="statusDot" title="Статус подключения"></div>
+      <div class="mono" id="lastUpdate">нет данных</div>
+    </header>
+
+    <main>
+
+      <!-- Overview -->
+      <section class="tab-panel active" id="tab-overview">
+        <div class="overview-top">
+<section class="panel" id="tcpPanel">
+            <h2>TCP порты</h2>
+            <table>
+              <thead><tr><th>ID</th><th>Host:Port</th><th>Open</th><th>Latency</th><th>Error</th></tr></thead>
+              <tbody id="tcpTable"></tbody>
+            </table>
+          </section>
+          <section class="panel" id="metricsPanel">
+            <h2>Prometheus метрики</h2>
+            <table>
+              <thead><tr><th>Source</th><th>Metric</th><th>Value</th></tr></thead>
+              <tbody id="metricsTable"></tbody>
+            </table>
+          </section>
+        </div>
+        <section class="panel" id="logsPanel">
+          <div class="overview-logs-header">
+            <h2>Backend логи</h2>
+            <div class="row wrap">
+              <label>Источник
+                <select id="logSource">
+                  <option value="backend">backend service</option>
+                  <option value="observer">observer.log</option>
+                  <option value="tunnel">ssh-tunnel.out</option>
+                </select>
+              </label>
+              <label>Сервис
+                <select id="backendService">
+                  <option value="datafilter">datafilter</option>
+                  <option value="gateway">gateway</option>
+                  <option value="websocket">websocket</option>
+                  <option value="auth">auth</option>
+                </select>
+              </label>
+              <label>Lines<input id="logLines" type="number" value="250" min="50" max="2000" /></label>
+              <button id="refreshBackendLogs">Обновить</button>
+              <label><input id="autoLogs" type="checkbox" checked /> Auto-refresh</label>
+            </div>
+          </div>
+          <pre id="backendLogsView"></pre>
+        </section>
+      </section>
+
+      <!-- Radio Charts -->
+      <section class="tab-panel" id="tab-charts">
+        <div class="panel" style="margin-bottom:14px">
+          <h2>Графики радиопараметров</h2>
+          <!-- hidden inputs — renderer.js reads .value from these -->
+          <input id="plotStart" type="hidden" />
+          <input id="plotEnd"   type="hidden" />
+          <div class="row wrap" style="align-items:flex-end">
+            <div class="time-range-wrap">
+              <div class="time-range-labels">
+                <span id="plotStartLabel">—</span>
+                <span id="plotEndLabel">—</span>
+              </div>
+              <div class="time-range-track">
+                <div class="time-range-bg"></div>
+                <div class="time-range-fill" id="plotRangeFill"></div>
+                <input type="range" id="plotRangeStart" min="0" max="100" value="0" step="1">
+                <input type="range" id="plotRangeEnd"   min="0" max="100" value="100" step="1">
+              </div>
+            </div>
+            <label>Operator (MNC)<select id="plotMnc"></select></label>
+            <label>Cell ID (CI)<select id="plotCi"></select></label>
+            <label>Band<select id="plotBand"></select></label>
+            <label>Metric
+              <select id="plotMetric">
+                <option value="LteRsrp">LteRsrp</option>
+                <option value="LteRsrq">LteRsrq</option>
+                <option value="LteRssnr">LteRssnr</option>
+                <option value="LteRssi">LteRssi</option>
+                <option value="LtePci">LtePci</option>
+                <option value="LteCi">LteCi</option>
+                <option value="LteCqi">LteCqi</option>
+              </select>
+            </label>
+            <button id="plotLoad">Загрузить графики</button>
+            <span id="plotInfo" class="muted"></span>
+          </div>
+        </div>
+        <div class="charts-grid" id="chartsGrid"></div>
+        <section class="panel" id="kpiPanel" style="margin-top:14px">
+          <h2>Radio KPI Summary</h2>
+          <div id="plotKpi"></div>
+        </section>
+      </section>
+
+      <!-- Map -->
+      <section class="tab-panel" id="tab-map">
+        <div class="panel" style="margin-bottom:14px">
+          <h2>Карта</h2>
+          <!-- hidden inputs — renderer.js reads .value from these -->
+          <input id="mapStart" type="hidden" />
+          <input id="mapEnd"   type="hidden" />
+          <div class="row wrap" style="align-items:flex-end">
+            <div class="time-range-wrap">
+              <div class="time-range-labels">
+                <span id="mapStartLabel">—</span>
+                <span id="mapEndLabel">—</span>
+              </div>
+              <div class="time-range-track">
+                <div class="time-range-bg"></div>
+                <div class="time-range-fill" id="mapRangeFill"></div>
+                <input type="range" id="mapRangeStart" min="0" max="100" value="0" step="1">
+                <input type="range" id="mapRangeEnd"   min="0" max="100" value="100" step="1">
+              </div>
+            </div>
+            <label>Operator<select id="mapOperator"><option value="all">all</option></select></label>
+            <label>RSRP min<input id="mapRsrpMin" type="number" value="-140" /></label>
+            <label>RSRP max<input id="mapRsrpMax" type="number" value="-40" /></label>
+            <label>RSRQ min<input id="mapRsrqMin" type="number" value="-30" /></label>
+            <label>RSRQ max<input id="mapRsrqMax" type="number" value="0" /></label>
+            <button id="mapLoad">Загрузить</button>
+            <button id="mapRefreshTiles" class="secondary">Обновить тайлы</button>
+            <label><input id="showTrack"        type="checkbox" checked /> Track</label>
+            <label><input id="showHeat"         type="checkbox" checked /> Heat points</label>
+            <label><input id="showBadZones"     type="checkbox" checked /> Bad zones</label>
+            <label><input id="showHandover"     type="checkbox" checked /> Handovers</label>
+            <label><input id="showCollision3"   type="checkbox" /> PCI mod 3</label>
+            <label><input id="showCollision6"   type="checkbox" /> PCI mod 6</label>
+            <label><input id="showBaseStations" type="checkbox" checked /> Base stations</label>
+            <span id="mapInfo" class="muted"></span>
+          </div>
+        </div>
+        <section class="panel"><div id="mapView"></div></section>
+      </section>
+
+      <!-- Tunnels -->
+      <section class="tab-panel" id="tab-tunnels">
+        <div class="panel">
+          <h2>SSH туннель</h2>
+          <div class="row wrap">
+            <label>Host<input id="tHost" /></label>
+            <label>Port<input id="tPort" type="number" /></label>
+            <label>User<input id="tUser" /></label>
+            <label>Password<input id="tPassword" type="password" placeholder="Введите пароль" /></label>
+            <button id="saveTunnel">Сохранить</button>
+            <button id="startTunnel">Старт</button>
+            <button id="stopTunnel" class="secondary">Стоп</button>
+          </div>
+          <div id="tunnelStatus" class="mono"></div>
+          <h3>Forwarding</h3>
+          <table>
+            <thead><tr><th>Local</th><th>Remote Host</th><th>Remote Port</th></tr></thead>
+            <tbody id="fwTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="tab-panel" id="tab-settings">
+        <div class="panel">
+          <h2>Настройки observer</h2>
+          <div class="row wrap">
+            <label>Интервал (мс)<input id="pollInterval" type="number" min="5000" step="1000" /></label>
+            <label>Таймаут (мс)<input id="timeoutMs" type="number" min="1000" step="500" /></label>
+            <button id="applyConfig">Применить</button>
+          </div>
+          <pre id="envDump" class="mono"></pre>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- /.app-body -->
+</div><!-- /.layout -->
+
+<!-- Chart fullscreen modal -->
+<div id="chartModal" class="chart-modal">
+  <div id="chartModalWrap" class="chart-modal-wrap">
+    <div class="chart-modal-toolbar">
+      <span id="chartModalTitle" class="chart-modal-title"></span>
+      <button id="chartModalReset" class="chart-btn" title="Сбросить зум">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+        </svg>
+        Сбросить зум
+      </button>
+      <button id="chartModalClose" class="chart-btn chart-btn-close" title="Закрыть (Esc)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <canvas id="chartModalCanvas"></canvas>
+    <div class="chart-hint" style="margin-top:6px">scroll — zoom · drag — pan · dblclick — reset</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+  // ── Burger toggle ─────────────────────────────────────
+  const burger = document.getElementById('burger');
+  burger.addEventListener('click', () => {
+    const collapsed = document.documentElement.classList.toggle('nav-collapsed');
+    localStorage.setItem('navCollapsed', collapsed ? '1' : '0');
+  });
+
+  // ── Theme toggle ──────────────────────────────────────
+  const SUN_ICON = `<path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/><circle cx="12" cy="12" r="4"/>`;
+  const MOON_ICON = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+
+  function applyThemeUI() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const icon = document.getElementById('themeIcon');
+    const label = document.querySelector('#themeToggle .theme-label');
+    icon.innerHTML = isDark ? SUN_ICON : MOON_ICON;
+    if (label) label.textContent = isDark ? 'Светлая тема' : 'Тёмная тема';
+  }
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    const next = isDark ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    applyThemeUI();
+    if (window.reRenderAllCharts) window.reRenderAllCharts();
+    if (window.resetMapTileLayer) window.resetMapTileLayer();
+  });
+
+  document.addEventListener('DOMContentLoaded', applyThemeUI);
+
+  // ── Map time range slider ─────────────────────────────
+  (function () {
+    const SLIDER_MIN_DATE = new Date('2024-01-01T00:00:00Z');
+    const SLIDER_MAX_DATE = new Date(); // today
+    const TOTAL_DAYS = Math.floor((SLIDER_MAX_DATE - SLIDER_MIN_DATE) / 86400000);
+
+    const slStart  = document.getElementById('mapRangeStart');
+    const slEnd    = document.getElementById('mapRangeEnd');
+    const fill     = document.getElementById('mapRangeFill');
+    const lblStart = document.getElementById('mapStartLabel');
+    const lblEnd   = document.getElementById('mapEndLabel');
+    const hidStart = document.getElementById('mapStart');
+    const hidEnd   = document.getElementById('mapEnd');
+
+    slStart.max = TOTAL_DAYS;
+    slEnd.max   = TOTAL_DAYS;
+    slEnd.value = TOTAL_DAYS;
+
+    function dayToIso(day) {
+      const d = new Date(SLIDER_MIN_DATE.getTime() + day * 86400000);
+      return d.toISOString().replace('.000Z', 'Z');
+    }
+
+    function fmtLabel(day) {
+      const d = new Date(SLIDER_MIN_DATE.getTime() + day * 86400000);
+      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function syncFill() {
+      const pStart = slStart.value / TOTAL_DAYS * 100;
+      const pEnd   = slEnd.value   / TOTAL_DAYS * 100;
+      fill.style.left  = pStart + '%';
+      fill.style.width = (pEnd - pStart) + '%';
+    }
+
+    function syncHidden() {
+      hidStart.value = dayToIso(Number(slStart.value));
+      hidEnd.value   = dayToIso(Number(slEnd.value));
+    }
+
+    function syncLabels() {
+      lblStart.textContent = fmtLabel(Number(slStart.value));
+      lblEnd.textContent   = fmtLabel(Number(slEnd.value));
+    }
+
+    function onInput() {
+      let s = Number(slStart.value), e = Number(slEnd.value);
+      if (s > e) { if (this === slStart) { slStart.value = e; s = e; } else { slEnd.value = s; e = s; } }
+      syncFill(); syncLabels(); syncHidden();
+    }
+
+    slStart.addEventListener('input', onInput);
+    slEnd.addEventListener('input', onInput);
+
+    // Public API for renderer.js to set values
+    // Slider thumb uses day-resolution for position; hidden inputs keep exact ISO
+    window.setMapTimeRange = function (startIso, endIso) {
+      const tStart = Date.parse(startIso);
+      const tEnd   = Date.parse(endIso);
+      if (Number.isFinite(tStart)) {
+        const day = Math.max(0, Math.min(TOTAL_DAYS, Math.floor((tStart - SLIDER_MIN_DATE) / 86400000)));
+        slStart.value = day;
+        hidStart.value = startIso;
+      }
+      if (Number.isFinite(tEnd)) {
+        const day = Math.max(0, Math.min(TOTAL_DAYS, Math.ceil((tEnd - SLIDER_MIN_DATE) / 86400000)));
+        slEnd.value = day;
+        hidEnd.value = endIso;
+      }
+      syncFill(); syncLabels();
+    };
+
+    // Init display
+    syncFill(); syncLabels(); syncHidden();
+  })();
+
+  // ── Plot time range slider ────────────────────────────
+  (function () {
+    const SLIDER_MIN_DATE = new Date('2024-01-01T00:00:00Z');
+    const SLIDER_MAX_DATE = new Date();
+    const TOTAL_DAYS = Math.floor((SLIDER_MAX_DATE - SLIDER_MIN_DATE) / 86400000);
+
+    const slStart  = document.getElementById('plotRangeStart');
+    const slEnd    = document.getElementById('plotRangeEnd');
+    const fill     = document.getElementById('plotRangeFill');
+    const lblStart = document.getElementById('plotStartLabel');
+    const lblEnd   = document.getElementById('plotEndLabel');
+    const hidStart = document.getElementById('plotStart');
+    const hidEnd   = document.getElementById('plotEnd');
+
+    slStart.max = TOTAL_DAYS;
+    slEnd.max   = TOTAL_DAYS;
+    slEnd.value = TOTAL_DAYS;
+
+    function dayToIso(day) {
+      const d = new Date(SLIDER_MIN_DATE.getTime() + day * 86400000);
+      return d.toISOString().replace('.000Z', 'Z');
+    }
+
+    function fmtLabel(day) {
+      const d = new Date(SLIDER_MIN_DATE.getTime() + day * 86400000);
+      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function syncFill() {
+      const pStart = slStart.value / TOTAL_DAYS * 100;
+      const pEnd   = slEnd.value   / TOTAL_DAYS * 100;
+      fill.style.left  = pStart + '%';
+      fill.style.width = (pEnd - pStart) + '%';
+    }
+
+    function syncHidden() {
+      hidStart.value = dayToIso(Number(slStart.value));
+      hidEnd.value   = dayToIso(Number(slEnd.value));
+    }
+
+    function syncLabels() {
+      lblStart.textContent = fmtLabel(Number(slStart.value));
+      lblEnd.textContent   = fmtLabel(Number(slEnd.value));
+    }
+
+    function onInput() {
+      let s = Number(slStart.value), e = Number(slEnd.value);
+      if (s > e) { if (this === slStart) { slStart.value = e; s = e; } else { slEnd.value = s; e = s; } }
+      syncFill(); syncLabels(); syncHidden();
+    }
+
+    slStart.addEventListener('input', onInput);
+    slEnd.addEventListener('input', onInput);
+
+    window.setPlotTimeRange = function (startIso, endIso) {
+      const tStart = Date.parse(startIso);
+      const tEnd   = Date.parse(endIso);
+      if (Number.isFinite(tStart)) {
+        const day = Math.max(0, Math.min(TOTAL_DAYS, Math.floor((tStart - SLIDER_MIN_DATE) / 86400000)));
+        slStart.value = day;
+        hidStart.value = startIso;
+      }
+      if (Number.isFinite(tEnd)) {
+        const day = Math.max(0, Math.min(TOTAL_DAYS, Math.ceil((tEnd - SLIDER_MIN_DATE) / 86400000)));
+        slEnd.value = day;
+        hidEnd.value = endIso;
+      }
+      syncFill(); syncLabels();
+    };
+
+    syncFill(); syncLabels(); syncHidden();
+  })();
+
+  // ── Status dot: mark live when lastUpdate changes ──────
+  const lastUpdateEl = document.getElementById('lastUpdate');
+  const statusDot = document.getElementById('statusDot');
+  const observer = new MutationObserver(() => {
+    const text = lastUpdateEl.textContent || '';
+    statusDot.classList.toggle('live', text !== 'no snapshots yet' && text !== '');
+  });
+  observer.observe(lastUpdateEl, { childList: true, subtree: true, characterData: true });
+</script>
+<script src="./renderer.js"></script>
+
+</body>
+</html>

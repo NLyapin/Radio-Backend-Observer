@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Runtime logs and local artifacts
+logs/
+*.log
+*.pid
+/tmp/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Build outputs
+dist/
+build/
+scripts/
+coverage/
+
+# Nested third-party project (must not be committed from this repo)
+front_react/
+
+# Synthetic dataset (generated locally, not committed)
+data/synthetic.json
+
+# Article and diagrams
+article/

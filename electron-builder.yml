@@ -1,0 +1,47 @@
+appId: ru.sibguti.radio-backend-observer
+productName: Radio Backend Observer
+
+# Include .env as extra resource so main.js can read it at runtime
+extraResources:
+  - from: .env
+    to: .env
+
+files:
+  - main.js
+  - preload.js
+  - tunnelManager.js
+  - syntheticDb.js
+  - collector.js
+  - collectorProcess.js
+  - renderer/**
+  - "!renderer/node_modules/**"
+  # Exclude cpu-features native addon — ssh2 has a pure-JS fallback
+  - "!node_modules/cpu-features/build/**"
+  - "!node_modules/cpu-features/prebuilds/**"
+
+asar: true
+
+# Skip native module rebuild — ssh2 falls back to pure JS without cpu-features
+npmRebuild: false
+
+mac:
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  category: public.app-category.utilities
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: portable
+      arch: [x64]
+
+linux:
+  icon: build/icon.png
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Utility
