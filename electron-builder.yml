@@ -1,11 +1,6 @@
 appId: ru.sibguti.radio-backend-observer
 productName: Radio Backend Observer
 
-# Include .env as extra resource so main.js can read it at runtime
-extraResources:
-  - from: .env
-    to: .env
-
 files:
   - main.js
   - preload.js
@@ -15,11 +10,20 @@ files:
   - collectorProcess.js
   - renderer/**
   - "!renderer/node_modules/**"
+  - build/**
   # Exclude cpu-features native addon — ssh2 has a pure-JS fallback
   - "!node_modules/cpu-features/build/**"
   - "!node_modules/cpu-features/prebuilds/**"
 
+# Force-include .env even though it's in .gitignore
+extraResources:
+  - from: .env
+    to: .env
+
 asar: true
+
+# Copy .env before packaging (bypasses .gitignore filtering)
+beforeBuild: scripts/copy-env.js
 
 # Skip native module rebuild — ssh2 falls back to pure JS without cpu-features
 npmRebuild: false

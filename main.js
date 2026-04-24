@@ -178,7 +178,6 @@ const BACKEND_LOG_TARGETS = {
 };
 
 function appendObserverLog(event, data) {
-  if (app.isPackaged) return;
   try {
     fs.mkdirSync(logsDir, { recursive: true });
     const line = JSON.stringify({ ts: new Date().toISOString(), event, data });
@@ -338,12 +337,12 @@ app.whenReady().then(() => {
     app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
   }
   tunnelConfigPath = path.join(app.getPath('userData'), 'tunnel.config.json');
-  if (!app.isPackaged) {
-    logsDir = path.join(process.cwd(), 'logs');
-    tunnelManager.setLogsDir(logsDir);
-  }
+  logsDir = app.isPackaged
+    ? path.join(app.getPath('userData'), 'logs')
+    : path.join(process.cwd(), 'logs');
+  tunnelManager.setLogsDir(logsDir);
   runtimeEnvConfig = readEnvConfig();
-  if (!app.isPackaged) resetRunLogs();
+  resetRunLogs();
   tunnelManager.setConfig(runtimeEnvConfig.tunnelDefaults);
   loadTunnelConfig();
   setupTileHeaders();
