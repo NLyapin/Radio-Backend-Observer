@@ -1,6 +1,6 @@
 {
   "name": "radio-backend-observer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Safe read-only desktop observer for backend metrics via proxy",
   "main": "main.js",
   "scripts": {
