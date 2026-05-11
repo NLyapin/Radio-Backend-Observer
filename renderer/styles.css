@@ -429,7 +429,10 @@ main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
 /* panel ID overrides */
 #summaryPanel { grid-column: auto; }
-#mapView      { height: 60vh; min-height: 480px; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+main.map-active { overflow: hidden; padding-bottom: 0; }
+#tab-map.active { height: 100%; min-height: 0; overflow: hidden; }
+#tab-map .map-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; margin: 0; min-height: 0; padding: 0; border: none; box-shadow: none; border-radius: 0; }
+#mapView      { flex: 1; min-height: 0; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
 
 /* ── Form rows ───────────────────────────────────────── */
 .controls, .row {

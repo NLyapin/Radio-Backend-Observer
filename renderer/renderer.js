@@ -91,6 +91,72 @@ const el = {
   fwTable: document.getElementById('fwTable')
 };
 
+// ── Session persistence (localStorage, cross-platform via Electron userData) ─
+const SESSION_KEY = 'rbo_session_v2';
+// Values to force-restore into selects whose options load asynchronously
+let _sessionSelectRestore = {};
+
+function saveSession() {
+  try {
+    const s = {
+      mapStart:        el.mapStart.value,
+      mapEnd:          el.mapEnd.value,
+      plotStart:       el.plotStart.value,
+      plotEnd:         el.plotEnd.value,
+      mapOperator:     el.mapOperator.value,
+      mapRsrpMin:      el.mapRsrpMin.value,
+      mapRsrpMax:      el.mapRsrpMax.value,
+      mapRsrqMin:      el.mapRsrqMin?.value,
+      mapRsrqMax:      el.mapRsrqMax?.value,
+      showTrack:       el.showTrack.checked,
+      showHeat:        el.showHeat.checked,
+      showBadZones:    el.showBadZones.checked,
+      showHandover:    el.showHandover.checked,
+      showCollision3:  el.showCollision3.checked,
+      showCollision6:  el.showCollision6.checked,
+      showBaseStations:el.showBaseStations.checked,
+      plotMnc:         el.plotMnc.value,
+      plotCi:          el.plotCi.value,
+      plotMetric:      el.plotMetric.value,
+      mapLat:          state.map?.getCenter()?.lat,
+      mapLng:          state.map?.getCenter()?.lng,
+      mapZoom:         state.map?.getZoom(),
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+  } catch (_) {}
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+
+function applySessionToInputs(s) {
+  if (!s) return;
+  if (s.mapStart)   el.mapStart.value   = s.mapStart;
+  if (s.mapEnd)     el.mapEnd.value     = s.mapEnd;
+  if (s.plotStart)  el.plotStart.value  = s.plotStart;
+  if (s.plotEnd)    el.plotEnd.value    = s.plotEnd;
+  if (s.mapRsrpMin != null) el.mapRsrpMin.value = s.mapRsrpMin;
+  if (s.mapRsrpMax != null) el.mapRsrpMax.value = s.mapRsrpMax;
+  if (s.mapRsrqMin != null && el.mapRsrqMin) el.mapRsrqMin.value = s.mapRsrqMin;
+  if (s.mapRsrqMax != null && el.mapRsrqMax) el.mapRsrqMax.value = s.mapRsrqMax;
+  el.showTrack.checked        = s.showTrack        ?? true;
+  el.showHeat.checked         = s.showHeat         ?? true;
+  el.showBadZones.checked     = s.showBadZones     ?? true;
+  el.showHandover.checked     = s.showHandover     ?? true;
+  el.showCollision3.checked   = s.showCollision3   ?? false;
+  el.showCollision6.checked   = s.showCollision6   ?? false;
+  el.showBaseStations.checked = s.showBaseStations ?? true;
+  if (s.plotMetric) el.plotMetric.value = s.plotMetric;
+  // Async selects: store desired values; replaceSelectOptions will apply them
+  if (s.mapOperator) _sessionSelectRestore['mapOperator'] = s.mapOperator;
+  if (s.plotMnc)     _sessionSelectRestore['plotMnc']     = s.plotMnc;
+  if (s.plotCi)      _sessionSelectRestore['plotCi']      = s.plotCi;
+}
+
 function esc(v) {
   return String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
@@ -212,6 +278,7 @@ async function applyEnvConfig() {
 function setTab(tab) {
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === `tab-${tab}`));
+  document.querySelector('main').classList.toggle('map-active', tab === 'map');
   if (tab === 'map' && state.map) setTimeout(() => state.map.invalidateSize(), 20);
 }
 
@@ -526,7 +593,7 @@ function renderTables(snapshot) {
 }
 
 function initMap() {
-  state.map = L.map('mapView', { preferCanvas: false }).setView([55.0152, 82.9296], 12);
+  state.map = L.map('mapView', { preferCanvas: false, attributionControl: false }).setView([55.0152, 82.9296], 12);
   state.pointRenderer = null;
   resetTileLayer();
 
@@ -684,7 +751,9 @@ function mncLabel(mnc) {
 }
 
 function replaceSelectOptions(selectEl, values, includeAll) {
-  const prev = selectEl.value;
+  const restoreKey = Object.keys(_sessionSelectRestore).find((k) => selectEl.id === k || selectEl === el[k]);
+  const prev = (restoreKey && _sessionSelectRestore[restoreKey]) || selectEl.value;
+  if (restoreKey) delete _sessionSelectRestore[restoreKey];
   const arr = Array.isArray(values) ? values : [];
   const opts = includeAll ? ['all', ...arr] : arr;
   const isMnc = selectEl === el.mapOperator || selectEl === el.plotMnc;
@@ -692,7 +761,7 @@ function replaceSelectOptions(selectEl, values, includeAll) {
     const label = (isMnc && v !== 'all') ? mncLabel(v) : esc(String(v));
     return `<option value="${esc(String(v))}">${label}</option>`;
   }).join('');
-  if (prev && opts.includes(String(prev))) selectEl.value = prev;
+  if (prev && opts.map(String).includes(String(prev))) selectEl.value = prev;
 }
 
 function addLayerItemsChunked(items, batchSize, fn, token) {
@@ -1739,15 +1808,27 @@ async function init() {
     }
     setupSnapshotBatching();
 
+    const savedSession = loadSession();
+    applySessionToInputs(savedSession);
+
     const now = new Date();
-    const initStart = DEFAULT_RANGE_START || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
-    const initEnd   = DEFAULT_RANGE_END   || now.toISOString();
-    if (window.setMapTimeRange) window.setMapTimeRange(initStart, initEnd);
-    else { el.mapStart.value = initStart; el.mapEnd.value = initEnd; }
-    if (window.setPlotTimeRange) window.setPlotTimeRange(initStart, initEnd);
-    else { el.plotStart.value = initStart; el.plotEnd.value = initEnd; }
+    if (!savedSession) {
+      // No saved session — use defaults / env config
+      const initStart = DEFAULT_RANGE_START || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
+      const initEnd   = DEFAULT_RANGE_END   || now.toISOString();
+      if (window.setMapTimeRange) window.setMapTimeRange(initStart, initEnd);
+      else { el.mapStart.value = initStart; el.mapEnd.value = initEnd; }
+      if (window.setPlotTimeRange) window.setPlotTimeRange(initStart, initEnd);
+      else { el.plotStart.value = initStart; el.plotEnd.value = initEnd; }
+    }
 
     initMap();
+
+    // Restore map viewport from last session
+    if (savedSession?.mapLat != null && savedSession?.mapLng != null && savedSession?.mapZoom != null) {
+      state.map.setView([savedSession.mapLat, savedSession.mapLng], savedSession.mapZoom, { animate: false });
+    }
+
     el.mapLoad.addEventListener('click', loadMapData);
     el.mapRefreshTiles.addEventListener('click', () => {
       resetTileLayer();
@@ -1767,23 +1848,37 @@ async function init() {
     el.backendService.addEventListener('change', refreshBackendLogs);
     setInterval(() => { if (el.autoLogs.checked) refreshBackendLogs(); }, 15000);
 
+    // Save session on any meaningful change
+    const debouncedSave = (() => { let t; return () => { clearTimeout(t); t = setTimeout(saveSession, 800); }; })();
+    [el.mapStart, el.mapEnd, el.plotStart, el.plotEnd,
+     el.mapRsrpMin, el.mapRsrpMax, el.mapRsrqMin, el.mapRsrqMax,
+     el.mapOperator, el.plotMnc, el.plotCi, el.plotMetric
+    ].forEach((x) => x?.addEventListener('change', debouncedSave));
+    [el.showTrack, el.showHeat, el.showBadZones, el.showHandover,
+     el.showCollision3, el.showCollision6, el.showBaseStations
+    ].forEach((x) => x?.addEventListener('change', debouncedSave));
+    state.map.on('moveend zoomend', debouncedSave);
+    window.addEventListener('beforeunload', saveSession);
+
     await initTunnel();
     await ensureTunnelRunning();
 
-    // Fire-and-forget
-    window.observerApi.getRadioMeta().then((meta) => {
-      if (meta && meta.maxIso && Number(meta.count) > 0) {
-        const maxTs = Date.parse(meta.maxIso);
-        if (Number.isFinite(maxTs)) {
-          const autoStart = new Date(maxTs - 2 * 60 * 60 * 1000).toISOString();
-          const autoEnd = new Date(maxTs).toISOString();
-          if (window.setMapTimeRange) window.setMapTimeRange(autoStart, autoEnd);
-          else { el.mapStart.value = autoStart; el.mapEnd.value = autoEnd; }
-          if (window.setPlotTimeRange) window.setPlotTimeRange(autoStart, autoEnd);
-          else { el.plotStart.value = autoStart; el.plotEnd.value = autoEnd; }
+    // Fire-and-forget: only auto-set dates if no saved session
+    if (!savedSession) {
+      window.observerApi.getRadioMeta().then((meta) => {
+        if (meta && meta.maxIso && Number(meta.count) > 0) {
+          const maxTs = Date.parse(meta.maxIso);
+          if (Number.isFinite(maxTs)) {
+            const autoStart = new Date(maxTs - 2 * 60 * 60 * 1000).toISOString();
+            const autoEnd = new Date(maxTs).toISOString();
+            if (window.setMapTimeRange) window.setMapTimeRange(autoStart, autoEnd);
+            else { el.mapStart.value = autoStart; el.mapEnd.value = autoEnd; }
+            if (window.setPlotTimeRange) window.setPlotTimeRange(autoStart, autoEnd);
+            else { el.plotStart.value = autoStart; el.plotEnd.value = autoEnd; }
+          }
         }
-      }
-    }).catch(() => {});
+      }).catch(() => {});
+    }
 
     fetchJsonWithDiag(`${API_BASE}/v1/filter/available/mnc`, 'map:mnc').then((mnc) => {
       if (Array.isArray(mnc) && mnc.length) replaceSelectOptions(el.mapOperator, mnc.map(String), true);
