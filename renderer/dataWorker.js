@@ -145,9 +145,10 @@ function prepareNemo(payload) {
   const parsed = rows.map(normalizeDbRow).filter((x) => Number.isFinite(x.t));
   parsed.sort((a, b) => a.t - b.t);
 
-  const rsrp = parsed.map((x) => x.rsrp).filter(Number.isFinite);
-  const rsrq = parsed.map((x) => x.rsrq).filter(Number.isFinite);
-  const sinr = parsed.map((x) => x.sinr).filter(Number.isFinite);
+  // 0 and near-zero are sentinel "unknown" values in the DB — exclude them
+  const rsrp = parsed.map((x) => x.rsrp).filter((v) => Number.isFinite(v) && v < -10);
+  const rsrq = parsed.map((x) => x.rsrq).filter((v) => Number.isFinite(v) && v < 0);
+  const sinr = parsed.map((x) => x.sinr).filter((v) => Number.isFinite(v) && v > -30 && v < 50);
 
   const rsrpSorted = [...rsrp].sort((a, b) => a - b);
   const rsrqSorted = [...rsrq].sort((a, b) => a - b);

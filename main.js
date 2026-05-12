@@ -266,30 +266,75 @@ async function getRadioPointsFromDb(startIso, endIso, limit = 20000) {
   const end = isoSqlSafe(endIso);
   const lim = Math.max(100, Math.min(80000, Number(limit || 20000)));
 
+  // DISTINCT ON (m.id) → one row per GPS point (prefer registered primary cell, then best signal)
+  // UNION ALL with WCDMA and GSM so all coverage points are shown
+  const sql = `
+(
+  SELECT DISTINCT ON (m.id)
+    to_char(m.time AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    m.latitude, m.longitude,
+    l.rsrp, l.rsrq, l.rssnr, l.ci::text, l.pci, l.mnc, l.cqi, l.bandwidth,
+    'LTE' AS tech
+  FROM message2 m JOIN lte_data l ON l.request_id = m.id
+  WHERE m.time BETWEEN '${start}' AND '${end}'
+    AND m.latitude IS NOT NULL AND m.longitude IS NOT NULL
+    AND l.rsrp IS NOT NULL AND l.rsrp < -10
+  ORDER BY m.id, l.registered DESC, l.rsrp DESC
+)
+UNION ALL
+(
+  SELECT DISTINCT ON (m.id)
+    to_char(m.time AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    m.latitude, m.longitude,
+    w.rscp, w.ecno, NULL, w.cid::text, w.psc, w.mnc, NULL, NULL,
+    'WCDMA' AS tech
+  FROM message2 m JOIN wcdma_data w ON w.request_id = m.id
+  WHERE m.time BETWEEN '${start}' AND '${end}'
+    AND m.latitude IS NOT NULL AND m.longitude IS NOT NULL
+    AND w.rscp IS NOT NULL AND w.rscp < -10
+  ORDER BY m.id, w.registered DESC, w.rscp DESC
+)
+UNION ALL
+(
+  SELECT DISTINCT ON (m.id)
+    to_char(m.time AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    m.latitude, m.longitude,
+    g.rssi, NULL, NULL, g.cid::text, NULL, g.mnc, NULL, NULL,
+    'GSM' AS tech
+  FROM message2 m JOIN gsm_data g ON g.request_id = m.id
+  WHERE m.time BETWEEN '${start}' AND '${end}'
+    AND m.latitude IS NOT NULL AND m.longitude IS NOT NULL
+    AND g.rssi IS NOT NULL AND g.rssi < -10
+  ORDER BY m.id, g.registered DESC, g.rssi DESC
+)
+ORDER BY 1 DESC
+LIMIT ${lim}`.replace(/\n\s*/g, ' ').trim();
+
   const remote = [
     '. $HOME/.profile 2>/dev/null || true',
     '. $HOME/.bashrc 2>/dev/null || true',
     'set -e',
     "PASS=$(kubectl -n storage-pg get secret postgres-secret -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d)",
     "POD=$(kubectl -n storage-pg get pod -o name | grep '^pod/postgres-0' | head -n1)",
-    `kubectl -n storage-pg exec "$POD" -- env PGPASSWORD="$PASS" psql -U postgres -d thermal_map_data_legacy -At -F '|' -c "select to_char(m.time at time zone 'UTC','YYYY-MM-DD\\"T\\"HH24:MI:SS.MS\\"Z\\"'), m.latitude, m.longitude, l.rsrp, l.rsrq, l.rssnr, l.ci, l.pci, l.mnc, l.cqi, l.bandwidth from message2 m join lte_data l on l.request_id = m.id where m.time between '${start}' and '${end}' and m.latitude is not null and m.longitude is not null and l.rsrp is not null order by m.time desc limit ${lim};"`
+    `kubectl -n storage-pg exec "$POD" -- env PGPASSWORD="$PASS" psql -U postgres -d thermal_map_data_legacy -At -F '|' -c "${sql.replace(/"/g, '\\"')}"`
   ].join('; ');
 
   const raw = await runSshCommand(remote);
   return String(raw || '').split('\n').filter(Boolean).map((line) => {
     const p = line.split('|');
     return {
-      time: p[0] || '',
-      latitude: Number(p[1]),
-      longitude: Number(p[2]),
-      rsrp: Number(p[3]),
-      rsrq: Number(p[4]),
-      rssnr: Number(p[5]),
-      cell_id: p[6] || '',
-      phys_cell_id: p[7] || '',
-      mnc: p[8] || '',
-      cqi: p[9] || '',
-      bandwidth: p[10] || ''
+      time:         p[0]  || '',
+      latitude:     Number(p[1]),
+      longitude:    Number(p[2]),
+      rsrp:         Number(p[3]),
+      rsrq:         Number(p[4]),
+      rssnr:        Number(p[5]),
+      cell_id:      p[6]  || '',
+      phys_cell_id: p[7]  || '',
+      mnc:          p[8]  || '',
+      cqi:          p[9]  || '',
+      bandwidth:    p[10] || '',
+      tech:         p[11] || 'LTE'
     };
   }).filter((x) => Number.isFinite(x.latitude) && Number.isFinite(x.longitude));
 }
