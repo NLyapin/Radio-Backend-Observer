@@ -343,24 +343,13 @@ function clearCanvas(canvas, msg) {
 
 function fmtTime(ts) {
   if (!Number.isFinite(ts)) return '';
-  return new Date(ts).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
-}
-
-function makeFmtTime(times) {
-  const span = (times[times.length - 1] ?? 0) - (times[0] ?? 0);
-  if (span > 23 * 3600 * 1000) {
-    return (ts) => {
-      if (!Number.isFinite(ts)) return '';
-      const d = new Date(ts);
-      const day = String(d.getDate()).padStart(2, '0');
-      const mon = String(d.getMonth() + 1).padStart(2, '0');
-      const yr  = String(d.getFullYear()).slice(2);
-      const h   = String(d.getHours()).padStart(2, '0');
-      const min = String(d.getMinutes()).padStart(2, '0');
-      return `${day}.${mon}.${yr} ${h}:${min}`;
-    };
-  }
-  return fmtTime;
+  const d = new Date(ts);
+  const day = String(d.getDate()).padStart(2, '0');
+  const mon = String(d.getMonth() + 1).padStart(2, '0');
+  const yr  = String(d.getFullYear()).slice(2);
+  const h   = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${day}.${mon}.${yr} ${h}:${min}`;
 }
 
 // Draw chart background, Y-grid, axes. Returns coordinate helpers + drawing context.
@@ -402,13 +391,12 @@ function chartBase(canvas, { yMin, yMax, nY = 5, yUnit = '' }) {
 function drawTimeAxis(ctx, c, m, plotW, plotH, times) {
   const n = times.length;
   if (!n) return;
-  const fmt = makeFmtTime(times);
-  const labelW = fmt === fmtTime ? 68 : 100;
+  const labelW = 100;
   const step = Math.max(1, Math.floor(n / Math.floor(plotW / labelW)));
   ctx.font = '10px Inter, system-ui, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = c.muted;
-  for (let i = 0; i < n; i += step) ctx.fillText(fmt(times[i]), m.left + (i / (n - 1)) * plotW, m.top + plotH + 4);
-  if ((n - 1) % step !== 0) ctx.fillText(fmt(times[n - 1]), m.left + plotW, m.top + plotH + 4);
+  for (let i = 0; i < n; i += step) ctx.fillText(fmtTime(times[i]), m.left + (i / (n - 1)) * plotW, m.top + plotH + 4);
+  if ((n - 1) % step !== 0) ctx.fillText(fmtTime(times[n - 1]), m.left + plotW, m.top + plotH + 4);
 }
 
 function drawRefLine(ctx, m, plotW, y, label, color) {
@@ -1295,10 +1283,9 @@ function drawPciTimeline(canvas, points, zoom) {
   // time axis
   ctx.font = '10px Inter, system-ui, sans-serif'; ctx.textAlign = 'center';
   ctx.textBaseline = 'top'; ctx.fillStyle = c.muted;
-  const fmt1 = makeFmtTime(times);
-  const step = Math.max(1, Math.floor(N / Math.floor(plotW / (fmt1 === fmtTime ? 68 : 100))));
-  for (let i = 0; i < N; i += step) ctx.fillText(fmt1(times[i]), m.left + (i / (N - 1 || 1)) * plotW, m.top + rowH + 4);
-  if (N > 1) ctx.fillText(fmt1(times[N - 1]), m.left + plotW, m.top + rowH + 4);
+  const step = Math.max(1, Math.floor(N / Math.floor(plotW / 100)));
+  for (let i = 0; i < N; i += step) ctx.fillText(fmtTime(times[i]), m.left + (i / (N - 1 || 1)) * plotW, m.top + rowH + 4);
+  if (N > 1) ctx.fillText(fmtTime(times[N - 1]), m.left + plotW, m.top + rowH + 4);
 }
 
 // ── Chart: single metric time series ─────────────────────────────────────────
@@ -1457,11 +1444,9 @@ function drawPciColorBands(canvas, pciTimeline, zoom) {
   // time axis
   ctx.font = '10px Inter, system-ui, sans-serif'; ctx.textAlign = 'center';
   ctx.textBaseline = 'top'; ctx.fillStyle = c.muted;
-  const tArr = points.map((p) => p.t);
-  const fmt2 = makeFmtTime(tArr);
-  const step = Math.max(1, Math.floor(N / Math.floor(plotW / (fmt2 === fmtTime ? 68 : 100))));
-  for (let i = 0; i < N; i += step) ctx.fillText(fmt2(points[i].t), m.left + (i / (N - 1 || 1)) * plotW, m.top + rowH + 4);
-  if (N > 1) ctx.fillText(fmt2(points[N - 1].t), m.left + plotW, m.top + rowH + 4);
+  const step = Math.max(1, Math.floor(N / Math.floor(plotW / 100)));
+  for (let i = 0; i < N; i += step) ctx.fillText(fmtTime(points[i].t), m.left + (i / (N - 1 || 1)) * plotW, m.top + rowH + 4);
+  if (N > 1) ctx.fillText(fmtTime(points[N - 1].t), m.left + plotW, m.top + rowH + 4);
 }
 
 // ── KPI cards (metric-aware) ──────────────────────────────────────────────────
