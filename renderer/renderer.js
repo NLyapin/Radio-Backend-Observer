@@ -88,6 +88,7 @@ const el = {
   saveTunnel: document.getElementById('saveTunnel'),
   startTunnel: document.getElementById('startTunnel'),
   stopTunnel: document.getElementById('stopTunnel'),
+  reconnectTunnel: document.getElementById('reconnectTunnel'),
   tunnelStatus: document.getElementById('tunnelStatus'),
   fwTable: document.getElementById('fwTable')
 };
@@ -279,7 +280,9 @@ async function applyEnvConfig() {
 function setTab(tab) {
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === `tab-${tab}`));
-  document.querySelector('main').classList.toggle('map-active', tab === 'map');
+  const mainEl = document.querySelector('main');
+  mainEl.classList.toggle('map-active', tab === 'map');
+  mainEl.classList.toggle('overview-active', tab === 'overview');
   if (tab === 'map' && state.map) setTimeout(() => state.map.invalidateSize(), 20);
 }
 
@@ -1756,6 +1759,24 @@ async function initTunnel() {
   });
 
   el.stopTunnel.addEventListener('click', async () => renderTunnel(await window.observerApi.stopTunnel()));
+
+  el.reconnectTunnel.addEventListener('click', async () => {
+    const btn = el.reconnectTunnel;
+    btn.disabled = true;
+    btn.textContent = '⟳ Отключение…';
+    try {
+      await window.observerApi.stopTunnel();
+      await new Promise((r) => setTimeout(r, 800));
+      btn.textContent = '⟳ Подключение…';
+      await window.observerApi.setTunnelConfig({ password: el.tPassword.value });
+      renderTunnel(await window.observerApi.startTunnel());
+    } catch (e) {
+      renderTunnel({ running: false, error: String(e) });
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⟳ Переподключить';
+    }
+  });
 }
 
 async function ensureTunnelRunning() {

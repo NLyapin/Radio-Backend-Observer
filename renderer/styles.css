@@ -393,9 +393,20 @@ main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 }
 
 /* ── Overview layout ─────────────────────────────────── */
+main.overview-active { overflow: hidden; padding-bottom: 0; }
 #tab-overview.active {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.overview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
 }
 .overview-top {
   display: grid;
@@ -403,6 +414,7 @@ main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   grid-auto-rows: minmax(0, 260px);
   gap: 14px;
   margin-bottom: 14px;
+  flex-shrink: 0;
 }
 .overview-logs-header {
   display: flex;
@@ -415,8 +427,8 @@ main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   margin: 0;
   flex-shrink: 0;
 }
-#logsPanel { display: flex; flex-direction: column; }
-#backendLogsView { flex: 1; margin: 0; min-height: 260px; max-height: 420px; }
+#logsPanel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+#backendLogsView { flex: 1; margin: 0; min-height: 0; max-height: none; overflow-y: auto; }
 #metricsPanel { overflow-y: auto; }
 #metricsPanel table { width: 100%; }
 
