@@ -56,6 +56,7 @@ const el = {
   mapLoad: document.getElementById('mapLoad'),
   mapRefreshTiles: document.getElementById('mapRefreshTiles'),
   mapInfo: document.getElementById('mapInfo'),
+  mapCoordsHud: document.getElementById('mapCoordsHud'),
   showTrack: document.getElementById('showTrack'),
   showHeat: document.getElementById('showHeat'),
   showBadZones: document.getElementById('showBadZones'),
@@ -630,6 +631,13 @@ function initMap() {
   state.map.on('moveend zoomend', () => {
     if (state.lastMapData) redrawMap(state.lastMapData);
   });
+
+  state.map.on('mousemove', (e) => {
+    if (el.mapCoordsHud) el.mapCoordsHud.textContent = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+  });
+  state.map.on('mouseout', () => {
+    if (el.mapCoordsHud) el.mapCoordsHud.textContent = '—, —';
+  });
 }
 
 function updateTileInfo(extra = '') {
@@ -823,6 +831,10 @@ function splitTrackByGap(points, maxKm) {
   return segments;
 }
 
+function isValidLatLon(lat, lon) {
+  return Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0);
+}
+
 function redrawMap(data) {
   state.drawToken += 1;
   const token = state.drawToken;
@@ -833,7 +845,7 @@ function redrawMap(data) {
   state.layers.collision6.clearLayers();
   state.layers.bs.clearLayers();
 
-  const allPoints = data.points || [];
+  const allPoints = (data.points || []).filter((p) => isValidLatLon(p.lat, p.lon));
   const bounds = state.map.getBounds();
   const points = allPoints.filter((p) => bounds.contains([p.lat, p.lon]));
   state.layers.track.setLatLngs(splitTrackByGap(allPoints, 1.0));
@@ -844,7 +856,7 @@ function redrawMap(data) {
       .addTo(state.layers.heat);
   }, token);
 
-  const badZones = (data.badZones || []).filter((p) => bounds.contains([p.lat, p.lon]));
+  const badZones = (data.badZones || []).filter((p) => isValidLatLon(p.lat, p.lon) && bounds.contains([p.lat, p.lon]));
   addLayerItemsChunked(badZones, 300, (p) => {
     L.circleMarker([p.lat, p.lon], { radius: 6, color: '#ff2d55', weight: 1, fillOpacity: 0.3 }).addTo(state.layers.badZones);
   }, token);
@@ -855,29 +867,45 @@ function redrawMap(data) {
     if (!from || !to) return;
     const a = [Number(from.latitude), Number(from.longitude)];
     const b = [Number(to.latitude), Number(to.longitude)];
-    if (a.every(Number.isFinite) && b.every(Number.isFinite) && distKm(a[0], a[1], b[0], b[1]) <= 3.0) L.polyline([a, b], { color: '#ff7f50', weight: 2, opacity: 0.8 }).addTo(state.layers.handover);
+    if (isValidLatLon(a[0], a[1]) && isValidLatLon(b[0], b[1]) && distKm(a[0], a[1], b[0], b[1]) <= 3.0) L.polyline([a, b], { color: '#ff7f50', weight: 2, opacity: 0.8 }).addTo(state.layers.handover);
   });
+
+  const describeCollision = (p, modLabel, lat, lon) => {
+    const lines = [`Коллизия PCI ${modLabel}`];
+    const ci = p.ci ?? p.cellId ?? p.cell_id;
+    const pci = p.pci ?? p.phys_cell_id ?? p.physCellId;
+    const mnc = p.mnc;
+    const neighborCi = p.neighborCi ?? p.neighbor_ci ?? p.neighborCellId;
+    const neighborPci = p.neighborPci ?? p.neighbor_pci;
+    if (ci != null) lines.push(`CI: ${esc(ci)}`);
+    if (pci != null) lines.push(`PCI: ${esc(pci)}`);
+    if (mnc != null) lines.push(`MNC: ${esc(mnc)}`);
+    if (neighborCi != null) lines.push(`Соседняя CI: ${esc(neighborCi)}`);
+    if (neighborPci != null) lines.push(`Соседний PCI: ${esc(neighborPci)}`);
+    lines.push(`${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+    return lines.join('<br/>');
+  };
 
   addLayerItemsChunked((data.coll3 || []), 400, (p) => {
     const lat = Number(p.latitude || p.lat);
     const lon = Number(p.longitude || p.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    if (!isValidLatLon(lat, lon)) return;
     if (!bounds.contains([lat, lon])) return;
-    L.circleMarker([lat, lon], { radius: 5, color: '#f94144', fillOpacity: 0.4 }).addTo(state.layers.collision3);
+    L.circleMarker([lat, lon], { radius: 5, color: '#f94144', fillOpacity: 0.4 }).bindTooltip(describeCollision(p, 'mod 3', lat, lon)).addTo(state.layers.collision3);
   }, token);
 
   addLayerItemsChunked((data.coll6 || []), 400, (p) => {
     const lat = Number(p.latitude || p.lat);
     const lon = Number(p.longitude || p.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    if (!isValidLatLon(lat, lon)) return;
     if (!bounds.contains([lat, lon])) return;
-    L.circleMarker([lat, lon], { radius: 5, color: '#9b5de5', fillOpacity: 0.4 }).addTo(state.layers.collision6);
+    L.circleMarker([lat, lon], { radius: 5, color: '#9b5de5', fillOpacity: 0.4 }).bindTooltip(describeCollision(p, 'mod 6', lat, lon)).addTo(state.layers.collision6);
   }, token);
 
   (data.bs || []).forEach((bs) => {
     const lat = Number(bs.lat);
     const lon = Number(bs.lon);
-    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    if (isValidLatLon(lat, lon)) {
       L.circleMarker([lat, lon], { radius: 6, color: '#00d4ff', fillOpacity: 0.8 }).bindTooltip(`MNC:${bs.mnc} CI:${bs.ci}`).addTo(state.layers.bs);
     }
     (Array.isArray(bs.polygons) ? bs.polygons : []).forEach((poly) => {

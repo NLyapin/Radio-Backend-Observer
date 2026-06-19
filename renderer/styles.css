@@ -533,8 +533,23 @@ main.overview-active { overflow: hidden; padding-bottom: 0; }
 #summaryPanel { grid-column: auto; }
 main.map-active { overflow: hidden; padding-bottom: 0; }
 #tab-map.active { height: 100%; min-height: 0; overflow: hidden; }
-#tab-map .map-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; margin: 0; min-height: 0; padding: 0; border: none; box-shadow: none; border-radius: 0; }
+#tab-map .map-panel { position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden; margin: 0; min-height: 0; padding: 0; border: none; box-shadow: none; border-radius: 0; }
 #mapView      { flex: 1; min-height: 0; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+
+.map-coords-hud {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 1100;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 6px);
+  padding: 4px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-2);
+  pointer-events: none;
+}
 
 /* ── Form rows ───────────────────────────────────────── */
 .controls, .row {
