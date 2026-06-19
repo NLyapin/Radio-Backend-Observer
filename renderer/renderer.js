@@ -74,6 +74,17 @@ const el = {
   plotInfo: document.getElementById('plotInfo'),
   plotKpi: document.getElementById('plotKpi'),
 
+  dashboardRangeBadge: document.getElementById('dashboardRangeBadge'),
+  dashKpis: document.getElementById('dashKpis'),
+  dashTechDonut: document.getElementById('dashTechDonut'),
+  dashTechLegend: document.getElementById('dashTechLegend'),
+  dashOperatorDonut: document.getElementById('dashOperatorDonut'),
+  dashOperatorLegend: document.getElementById('dashOperatorLegend'),
+  dashQualityDonut: document.getElementById('dashQualityDonut'),
+  dashQualityLegend: document.getElementById('dashQualityLegend'),
+  dashTrendChart: document.getElementById('dashTrendChart'),
+  dashTopCellsChart: document.getElementById('dashTopCellsChart'),
+
   logSource: document.getElementById('logSource'),
   backendService: document.getElementById('backendService'),
   refreshBackendLogs: document.getElementById('refreshBackendLogs'),
@@ -1527,6 +1538,271 @@ function renderKpi(kpis, metric) {
   el.plotKpi.innerHTML = `<div class="kpi-grid">${[...base, ...specific].join('')}</div>`;
 }
 
+// ── Dashboard (time-range only, no operator/cell/metric filters) ──────────────
+
+const DASH_PALETTE = ['#4ea5ff', '#f59e0b', '#8b5cf6', '#34d399', '#f97316', '#ec4899', '#94a3b8'];
+const DASH_TECH_COLOR = { LTE: '#4ea5ff', WCDMA: '#34d399', GSM: '#f59e0b' };
+const DASH_QUALITY_COLOR = {
+  'Отличное': '#16a34a',
+  'Хорошее': '#3b82f6',
+  'Удовлетворительное': '#d97706',
+  'Слабое': '#dc2626'
+};
+
+function animateCountUp(node, target, opts) {
+  const o = opts || {};
+  const duration = o.duration || 700;
+  const decimals = o.decimals ?? 0;
+  const suffix = o.suffix || '';
+  const start = performance.now();
+  const from = 0;
+  const to = Number.isFinite(target) ? target : 0;
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  function tick(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const v = from + (to - from) * ease(t);
+    node.textContent = (decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString('ru')) + suffix;
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function drawDonutAnimated(canvas, segments, opts) {
+  const ctx = canvas.getContext('2d');
+  const c = themeColors();
+  const o = opts || {};
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const rOuter = Math.min(W, H) / 2 - 6;
+  const rInner = rOuter * 0.6;
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+
+  const duration = 650;
+  const start = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const k = ease(t);
+    ctx.clearRect(0, 0, W, H);
+
+    let angle = -Math.PI / 2;
+    for (const seg of segments) {
+      const sweep = (seg.value / total) * Math.PI * 2 * k;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, rOuter, angle, angle + sweep);
+      ctx.closePath();
+      ctx.fillStyle = seg.color;
+      ctx.fill();
+      angle += sweep;
+    }
+    // punch the donut hole
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    ctx.fillStyle = c.text;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 18px Inter, system-ui, sans-serif';
+    ctx.fillText(Math.round(total * k).toLocaleString('ru'), cx, cy - 8);
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    ctx.fillStyle = c.muted;
+    ctx.fillText(o.centerLabel || 'всего', cx, cy + 12);
+
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function renderDonutLegend(node, segments, total) {
+  node.innerHTML = segments.map((s) => `
+    <div class="dash-legend-item">
+      <span class="dash-legend-dot" style="background:${s.color}"></span>
+      <span class="dash-legend-label">${esc(s.label)}</span>
+      <span class="dash-legend-value">${total ? Math.round(s.value / total * 100) : 0}%</span>
+    </div>`).join('');
+}
+
+function drawCategoryBarsAnimated(canvas, items) {
+  const ctx = canvas.getContext('2d');
+  const c = themeColors();
+  const W = canvas.width, H = canvas.height;
+  const m = { top: 10, right: 16, bottom: 26, left: 16 };
+  const plotW = W - m.left - m.right;
+  const plotH = H - m.top - m.bottom;
+  const n = items.length || 1;
+  const gap = 14;
+  const barW = Math.max(8, (plotW - gap * (n - 1)) / n);
+  const maxV = Math.max(1, ...items.map((i) => i.value));
+
+  const duration = 650;
+  const start = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const k = ease(t);
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '11px Inter, system-ui, sans-serif';
+
+    items.forEach((it, i) => {
+      const h = (it.value / maxV) * plotH * k;
+      const x = m.left + i * (barW + gap);
+      const y = m.top + plotH - h;
+      const grad = ctx.createLinearGradient(0, y, 0, m.top + plotH);
+      grad.addColorStop(0, '#4ea5ff');
+      grad.addColorStop(1, 'rgba(78,165,255,.35)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(x, y, barW, h, [6, 6, 0, 0]) : ctx.rect(x, y, barW, h);
+      ctx.fill();
+
+      ctx.fillStyle = c.text;
+      ctx.textAlign = 'center';
+      ctx.fillText(it.value.toLocaleString('ru'), x + barW / 2, y - 6);
+      ctx.fillStyle = c.muted;
+      ctx.fillText(it.label, x + barW / 2, m.top + plotH + 16);
+    });
+
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function drawTrendAreaAnimated(canvas, trend, bucketMs) {
+  const ctx = canvas.getContext('2d');
+  const c = themeColors();
+  const W = canvas.width, H = canvas.height;
+  const m = { top: 14, right: 16, bottom: 26, left: 46 };
+  const plotW = W - m.left - m.right;
+  const plotH = H - m.top - m.bottom;
+  const n = trend.length;
+  if (!n) { clearCanvas(canvas, 'Нет данных'); return; }
+
+  const maxV = Math.max(1, ...trend.map((p) => p.count));
+  const toX = (i) => m.left + (i / Math.max(n - 1, 1)) * plotW;
+  const toY = (v) => m.top + plotH - (v / maxV) * plotH;
+  const fmt = bucketMs >= 24 * 3600 * 1000
+    ? (ts) => { const d = new Date(ts); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; }
+    : fmtTime;
+
+  const duration = 750;
+  const start = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const k = ease(t);
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.font = '10px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 4; i++) {
+      const v = maxV * i / 4;
+      const y = toY(v);
+      ctx.strokeStyle = c.grid; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(m.left, y); ctx.lineTo(m.left + plotW, y); ctx.stroke();
+      ctx.fillStyle = c.muted;
+      ctx.fillText(Math.round(v), m.left - 6, y);
+    }
+
+    const visibleN = Math.max(2, Math.round(n * k));
+    ctx.beginPath();
+    ctx.moveTo(toX(0), toY(trend[0].count));
+    for (let i = 1; i < visibleN; i++) ctx.lineTo(toX(i), toY(trend[i].count));
+    const lastX = toX(visibleN - 1);
+    ctx.lineTo(lastX, m.top + plotH);
+    ctx.lineTo(toX(0), m.top + plotH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, m.top, 0, m.top + plotH);
+    grad.addColorStop(0, 'rgba(78,165,255,.35)');
+    grad.addColorStop(1, 'rgba(78,165,255,.02)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(toX(0), toY(trend[0].count));
+    for (let i = 1; i < visibleN; i++) ctx.lineTo(toX(i), toY(trend[i].count));
+    ctx.strokeStyle = '#4ea5ff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = c.muted;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const step = Math.max(1, Math.floor(n / Math.floor(plotW / 70)));
+    for (let i = 0; i < n; i += step) ctx.fillText(fmt(trend[i].t), toX(i), m.top + plotH + 6);
+
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function renderDashboard(dash) {
+  if (!dash || !dash.total) {
+    el.dashboardRangeBadge.textContent = 'нет данных за период';
+    el.dashKpis.innerHTML = '<span class="muted">Нет данных за выбранный период</span>';
+    [el.dashTechDonut, el.dashOperatorDonut, el.dashQualityDonut].forEach((cv) => clearCanvas(cv, 'Нет данных'));
+    clearCanvas(el.dashTrendChart, 'Нет данных');
+    clearCanvas(el.dashTopCellsChart, 'Нет данных');
+    return;
+  }
+
+  const fmtDate = (ts) => Number.isFinite(ts) ? new Date(ts).toLocaleDateString('ru') : '—';
+  el.dashboardRangeBadge.textContent = `${fmtDate(dash.minT)} — ${fmtDate(dash.maxT)} · все операторы`;
+
+  // KPI cards with count-up animation
+  const kpiDefs = [
+    { label: 'Всего измерений', value: dash.total, decimals: 0 },
+    { label: 'Операторов',      value: dash.uniqueOperators, decimals: 0 },
+    { label: 'Уникальных сот',  value: dash.uniqueCells, decimals: 0 },
+    { label: 'Период, дней',    value: Math.max(1, Math.round((dash.maxT - dash.minT) / 86400000)), decimals: 0 },
+    { label: 'Средний RSRP',    value: dash.avgRsrp, decimals: 1, suffix: ' дБм' },
+    { label: 'Средний SINR',    value: dash.avgSinr, decimals: 1, suffix: ' дБ' },
+  ];
+  el.dashKpis.innerHTML = `<div class="kpi-grid">${kpiDefs.map((k, i) =>
+    `<div class="kpi-card" style="--i:${i}"><div class="kpi-label">${esc(k.label)}</div><div class="kpi-value" id="dashKpiVal${i}"></div></div>`
+  ).join('')}</div>`;
+  kpiDefs.forEach((k, i) => {
+    const node = document.getElementById(`dashKpiVal${i}`);
+    if (node && Number.isFinite(k.value)) animateCountUp(node, k.value, { decimals: k.decimals, suffix: k.suffix || '' });
+    else if (node) node.textContent = '—';
+  });
+
+  // Technology donut
+  const techSegs = Object.entries(dash.techCount)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label, value, color: DASH_TECH_COLOR[label] || '#94a3b8' }));
+  drawDonutAnimated(el.dashTechDonut, techSegs, { centerLabel: 'всего' });
+  renderDonutLegend(el.dashTechLegend, techSegs, dash.total);
+
+  // Operator donut (top 6 + "other")
+  const opEntries = Object.entries(dash.opCount).sort((a, b) => b[1] - a[1]);
+  const opTop = opEntries.slice(0, 6);
+  const opOtherSum = opEntries.slice(6).reduce((s, [, v]) => s + v, 0);
+  const opSegs = opTop.map(([label, value], i) => ({ label, value, color: DASH_PALETTE[i % DASH_PALETTE.length] }));
+  if (opOtherSum > 0) opSegs.push({ label: 'другие', value: opOtherSum, color: '#94a3b8' });
+  drawDonutAnimated(el.dashOperatorDonut, opSegs, { centerLabel: 'всего' });
+  renderDonutLegend(el.dashOperatorLegend, opSegs, dash.total);
+
+  // Quality donut
+  const qualSegs = Object.entries(dash.qualityBuckets)
+    .filter(([, v]) => v > 0)
+    .map(([label, value]) => ({ label, value, color: DASH_QUALITY_COLOR[label] || '#94a3b8' }));
+  drawDonutAnimated(el.dashQualityDonut, qualSegs, { centerLabel: 'оценено' });
+  renderDonutLegend(el.dashQualityLegend, qualSegs, dash.qualityKnown);
+
+  // Trend over time
+  drawTrendAreaAnimated(el.dashTrendChart, dash.trend, dash.bucketMs);
+
+  // Top cells bar chart
+  const cellItems = dash.topCells.map(([label, value]) => ({ label, value }));
+  drawCategoryBarsAnimated(el.dashTopCellsChart, cellItems);
+}
+
 // ── Per-metric chart sets ─────────────────────────────────────────────────────
 const METRIC_CHARTS = {
   LteRsrp: (n) => [
@@ -1680,6 +1956,10 @@ async function loadPlots(opts = {}) {
     }
     const list = Array.isArray(rows) ? rows : (rows?.rows || []);
     populateMncCiFromRows(list);
+
+    // Dashboard depends only on the selected time range — no operator/cell/metric filters
+    callWorker('prepareDashboard', { dbRows: list }).then(renderDashboard).catch(() => {});
+
     const selMnc = el.plotMnc.value;
     const selCi  = el.plotCi.value;
     const filtered = list.filter((r) => {

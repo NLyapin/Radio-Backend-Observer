@@ -160,6 +160,49 @@
 
       <!-- Radio Charts -->
       <section class="tab-panel" id="tab-charts">
+
+        <!-- Dashboard — depends only on the selected time range, no operator/cell/metric filters -->
+        <section class="panel dashboard-panel" id="dashboardPanel">
+          <h2>Дэшборд по всем данным <span class="dashboard-badge" id="dashboardRangeBadge">—</span></h2>
+          <div class="dashboard-grid" id="dashboardGrid">
+            <div class="dash-kpis" id="dashKpis"></div>
+
+            <div class="dash-card">
+              <h3>Технологии</h3>
+              <div class="dash-donut-wrap">
+                <canvas id="dashTechDonut" width="240" height="240"></canvas>
+                <div class="dash-donut-legend" id="dashTechLegend"></div>
+              </div>
+            </div>
+
+            <div class="dash-card">
+              <h3>Операторы (MNC)</h3>
+              <div class="dash-donut-wrap">
+                <canvas id="dashOperatorDonut" width="240" height="240"></canvas>
+                <div class="dash-donut-legend" id="dashOperatorLegend"></div>
+              </div>
+            </div>
+
+            <div class="dash-card">
+              <h3>Качество сигнала (RSRP)</h3>
+              <div class="dash-donut-wrap">
+                <canvas id="dashQualityDonut" width="240" height="240"></canvas>
+                <div class="dash-donut-legend" id="dashQualityLegend"></div>
+              </div>
+            </div>
+
+            <div class="dash-card dash-card-wide">
+              <h3>Динамика измерений во времени</h3>
+              <canvas id="dashTrendChart" width="1200" height="170"></canvas>
+            </div>
+
+            <div class="dash-card dash-card-wide">
+              <h3>Топ сот по числу измерений (CI)</h3>
+              <canvas id="dashTopCellsChart" width="1200" height="200"></canvas>
+            </div>
+          </div>
+        </section>
+
         <div class="panel" style="margin-bottom:14px">
           <h2>Графики радиопараметров</h2>
           <!-- hidden inputs — renderer.js reads .value from these -->

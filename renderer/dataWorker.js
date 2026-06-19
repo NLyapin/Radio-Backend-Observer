@@ -242,6 +242,82 @@ function prepareNemo(payload) {
   };
 }
 
+function prepareDashboard(payload) {
+  const rows = Array.isArray(payload?.dbRows) ? payload.dbRows : [];
+  const parsed = rows.map((r) => ({
+    t:    Date.parse(r?.time || ''),
+    rsrp: toNum(r?.rsrp),
+    sinr: toNum(r?.rssnr),
+    mnc:  String(r?.mnc ?? ''),
+    ci:   String(r?.ci ?? r?.cell_id ?? ''),
+    tech: String(r?.tech || 'LTE').toUpperCase()
+  })).filter((x) => Number.isFinite(x.t));
+
+  parsed.sort((a, b) => a.t - b.t);
+
+  const total = parsed.length;
+  const minT = total ? parsed[0].t : NaN;
+  const maxT = total ? parsed[total - 1].t : NaN;
+
+  const techCount = {};
+  for (const p of parsed) techCount[p.tech] = (techCount[p.tech] || 0) + 1;
+
+  const opCount = {};
+  for (const p of parsed) {
+    const key = p.mnc && p.mnc !== '0' ? p.mnc : 'Н/Д';
+    opCount[key] = (opCount[key] || 0) + 1;
+  }
+
+  const cellCount = {};
+  for (const p of parsed) {
+    if (!p.ci || p.ci === '0') continue;
+    cellCount[p.ci] = (cellCount[p.ci] || 0) + 1;
+  }
+  const topCells = Object.entries(cellCount).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  // RSRP quality buckets — same thresholds as map heat coloring (rsrpZoneColor)
+  const qualityBuckets = { 'Отличное': 0, 'Хорошее': 0, 'Удовлетворительное': 0, 'Слабое': 0 };
+  let qualityKnown = 0;
+  for (const p of parsed) {
+    if (!Number.isFinite(p.rsrp) || p.rsrp >= -10) continue;
+    qualityKnown += 1;
+    if (p.rsrp > -80) qualityBuckets['Отличное'] += 1;
+    else if (p.rsrp > -95) qualityBuckets['Хорошее'] += 1;
+    else if (p.rsrp > -110) qualityBuckets['Удовлетворительное'] += 1;
+    else qualityBuckets['Слабое'] += 1;
+  }
+
+  // Trend buckets: by day for ranges > 3 days, otherwise by hour
+  const spanMs = (Number.isFinite(maxT) && Number.isFinite(minT)) ? (maxT - minT) : 0;
+  const bucketMs = spanMs > 3 * 24 * 3600 * 1000 ? 24 * 3600 * 1000 : 3600 * 1000;
+  const trendMap = new Map();
+  for (const p of parsed) {
+    const bucket = Math.floor(p.t / bucketMs) * bucketMs;
+    trendMap.set(bucket, (trendMap.get(bucket) || 0) + 1);
+  }
+  const trend = [...trendMap.entries()].sort((a, b) => a[0] - b[0]).map(([t, count]) => ({ t, count }));
+
+  const rsrpVals = parsed.map((p) => p.rsrp).filter((v) => Number.isFinite(v) && v < -10);
+  const sinrVals = parsed.map((p) => p.sinr).filter((v) => Number.isFinite(v) && v > -30 && v < 50);
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN);
+
+  return {
+    total,
+    minT, maxT,
+    uniqueOperators: Object.keys(opCount).length,
+    uniqueCells: Object.keys(cellCount).length,
+    techCount,
+    opCount,
+    topCells,
+    qualityBuckets,
+    qualityKnown,
+    trend,
+    bucketMs,
+    avgRsrp: avg(rsrpVals),
+    avgSinr: avg(sinrVals)
+  };
+}
+
 self.onmessage = (event) => {
   const msg = event?.data || {};
   const reqId = msg.reqId;
@@ -256,6 +332,10 @@ self.onmessage = (event) => {
     }
     if (msg.type === 'prepareNemo') {
       self.postMessage({ reqId, ok: true, data: prepareNemo(msg.payload) });
+      return;
+    }
+    if (msg.type === 'prepareDashboard') {
+      self.postMessage({ reqId, ok: true, data: prepareDashboard(msg.payload) });
       return;
     }
     self.postMessage({ reqId, ok: false, error: `Unknown worker message type: ${String(msg.type || '')}` });
