@@ -769,7 +769,7 @@ const MNC_NAMES = {
 };
 function mncLabel(mnc) {
   const s = String(mnc);
-  return MNC_NAMES[s] ? `${MNC_NAMES[s]} (${s})` : s;
+  return MNC_NAMES[s] || s;
 }
 
 function replaceSelectOptions(selectEl, values, includeAll) {
@@ -1653,9 +1653,10 @@ function drawCategoryBarsAnimated(canvas, items) {
       const h = (it.value / maxV) * plotH * k;
       const x = m.left + i * (barW + gap);
       const y = m.top + plotH - h;
+      const base = it.color || '#4ea5ff';
       const grad = ctx.createLinearGradient(0, y, 0, m.top + plotH);
-      grad.addColorStop(0, '#4ea5ff');
-      grad.addColorStop(1, 'rgba(78,165,255,.35)');
+      grad.addColorStop(0, base);
+      grad.addColorStop(1, base + (base.length === 7 ? '59' : ''));
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.roundRect ? ctx.roundRect(x, y, barW, h, [6, 6, 0, 0]) : ctx.rect(x, y, barW, h);
@@ -1663,7 +1664,7 @@ function drawCategoryBarsAnimated(canvas, items) {
 
       ctx.fillStyle = c.text;
       ctx.textAlign = 'center';
-      ctx.fillText(it.value.toLocaleString('ru'), x + barW / 2, y - 6);
+      ctx.fillText(it.valueLabel ?? it.value.toLocaleString('ru'), x + barW / 2, y - 6);
       ctx.fillStyle = c.muted;
       ctx.fillText(it.label, x + barW / 2, m.top + plotH + 16);
     });
@@ -1783,7 +1784,7 @@ function renderDashboard(dash) {
   const opEntries = Object.entries(dash.opCount).sort((a, b) => b[1] - a[1]);
   const opTop = opEntries.slice(0, 6);
   const opOtherSum = opEntries.slice(6).reduce((s, [, v]) => s + v, 0);
-  const opSegs = opTop.map(([label, value], i) => ({ label, value, color: DASH_PALETTE[i % DASH_PALETTE.length] }));
+  const opSegs = opTop.map(([mnc, value], i) => ({ label: mnc === 'Н/Д' ? mnc : mncLabel(mnc), value, color: DASH_PALETTE[i % DASH_PALETTE.length] }));
   if (opOtherSum > 0) opSegs.push({ label: 'другие', value: opOtherSum, color: '#94a3b8' });
   drawDonutAnimated(el.dashOperatorDonut, opSegs, { centerLabel: 'всего' });
   renderDonutLegend(el.dashOperatorLegend, opSegs, dash.total);
@@ -1798,9 +1799,14 @@ function renderDashboard(dash) {
   // Trend over time
   drawTrendAreaAnimated(el.dashTrendChart, dash.trend, dash.bucketMs);
 
-  // Top cells bar chart
-  const cellItems = dash.topCells.map(([label, value]) => ({ label, value }));
-  drawCategoryBarsAnimated(el.dashTopCellsChart, cellItems);
+  // Average RSRP per operator — direct quality comparison across operators
+  const rsrpItems = dash.avgRsrpByOperator.map((o) => ({
+    label: mncLabel(o.mnc),
+    value: Number.isFinite(o.avgRsrp) ? o.avgRsrp + 150 : 0,
+    valueLabel: Number.isFinite(o.avgRsrp) ? `${o.avgRsrp.toFixed(1)} дБм` : '—',
+    color: rsrpZoneColor(o.avgRsrp)
+  }));
+  drawCategoryBarsAnimated(el.dashTopCellsChart, rsrpItems);
 }
 
 // ── Per-metric chart sets ─────────────────────────────────────────────────────
@@ -1996,7 +2002,7 @@ async function loadPlots(opts = {}) {
 let logsInFlight = false;
 async function refreshBackendLogs(force = false) {
   if (logsInFlight) return;
-  const logsTabActive = document.getElementById('tab-logs')?.classList.contains('active');
+  const logsTabActive = document.getElementById('tab-overview')?.classList.contains('active');
   if (!force && !logsTabActive && el.autoLogs.checked) return;
 
   logsInFlight = true;

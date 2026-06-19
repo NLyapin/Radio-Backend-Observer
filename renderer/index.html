@@ -111,12 +111,9 @@
 
       <!-- Overview -->
       <section class="tab-panel active" id="tab-overview">
-        <div class="overview-actions">
-          <button id="reconnectTunnel" class="secondary">⟳ Переподключить</button>
-        </div>
         <div class="overview-top">
 <section class="panel" id="tcpPanel">
-            <h2>TCP порты</h2>
+            <h2>TCP порты <button id="reconnectTunnel" class="secondary">⟳ Переподключить</button></h2>
             <table>
               <thead><tr><th>ID</th><th>Host:Port</th><th>Open</th><th>Latency</th><th>Error</th></tr></thead>
               <tbody id="tcpTable"></tbody>
@@ -161,6 +158,43 @@
       <!-- Radio Charts -->
       <section class="tab-panel" id="tab-charts">
 
+        <div class="panel charts-controls-sticky" style="margin-bottom:14px">
+          <h2>Графики радиопараметров</h2>
+          <!-- hidden inputs — renderer.js reads .value from these -->
+          <input id="plotStart" type="hidden" />
+          <input id="plotEnd"   type="hidden" />
+          <div class="row wrap" style="align-items:flex-end">
+            <div class="time-range-wrap">
+              <div class="time-range-labels">
+                <span id="plotStartLabel">—</span>
+                <span id="plotEndLabel">—</span>
+              </div>
+              <div class="time-range-track">
+                <div class="time-range-bg"></div>
+                <div class="time-range-fill" id="plotRangeFill"></div>
+                <input type="range" id="plotRangeStart" min="0" max="100" value="0" step="1">
+                <input type="range" id="plotRangeEnd"   min="0" max="100" value="100" step="1">
+              </div>
+            </div>
+            <label>Operator (MNC)<select id="plotMnc"></select></label>
+            <label>Cell ID (CI)<select id="plotCi"></select></label>
+            <label>Band<select id="plotBand"></select></label>
+            <label>Metric
+              <select id="plotMetric">
+                <option value="LteRsrp">LteRsrp</option>
+                <option value="LteRsrq">LteRsrq</option>
+                <option value="LteRssnr">LteRssnr</option>
+                <option value="LteRssi">LteRssi</option>
+                <option value="LtePci">LtePci</option>
+                <option value="LteCi">LteCi</option>
+                <option value="LteCqi">LteCqi</option>
+              </select>
+            </label>
+            <button id="plotLoad">Загрузить графики</button>
+            <span id="plotInfo" class="muted"></span>
+          </div>
+        </div>
+
         <!-- Dashboard — depends only on the selected time range, no operator/cell/metric filters -->
         <section class="panel dashboard-panel" id="dashboardPanel">
           <h2>Дэшборд по всем данным <span class="dashboard-badge" id="dashboardRangeBadge">—</span></h2>
@@ -197,48 +231,12 @@
             </div>
 
             <div class="dash-card dash-card-wide">
-              <h3>Топ сот по числу измерений (CI)</h3>
+              <h3>Среднее качество сигнала (RSRP) по операторам</h3>
               <canvas id="dashTopCellsChart" width="1200" height="200"></canvas>
             </div>
           </div>
         </section>
 
-        <div class="panel" style="margin-bottom:14px">
-          <h2>Графики радиопараметров</h2>
-          <!-- hidden inputs — renderer.js reads .value from these -->
-          <input id="plotStart" type="hidden" />
-          <input id="plotEnd"   type="hidden" />
-          <div class="row wrap" style="align-items:flex-end">
-            <div class="time-range-wrap">
-              <div class="time-range-labels">
-                <span id="plotStartLabel">—</span>
-                <span id="plotEndLabel">—</span>
-              </div>
-              <div class="time-range-track">
-                <div class="time-range-bg"></div>
-                <div class="time-range-fill" id="plotRangeFill"></div>
-                <input type="range" id="plotRangeStart" min="0" max="100" value="0" step="1">
-                <input type="range" id="plotRangeEnd"   min="0" max="100" value="100" step="1">
-              </div>
-            </div>
-            <label>Operator (MNC)<select id="plotMnc"></select></label>
-            <label>Cell ID (CI)<select id="plotCi"></select></label>
-            <label>Band<select id="plotBand"></select></label>
-            <label>Metric
-              <select id="plotMetric">
-                <option value="LteRsrp">LteRsrp</option>
-                <option value="LteRsrq">LteRsrq</option>
-                <option value="LteRssnr">LteRssnr</option>
-                <option value="LteRssi">LteRssi</option>
-                <option value="LtePci">LtePci</option>
-                <option value="LteCi">LteCi</option>
-                <option value="LteCqi">LteCqi</option>
-              </select>
-            </label>
-            <button id="plotLoad">Загрузить графики</button>
-            <span id="plotInfo" class="muted"></span>
-          </div>
-        </div>
         <div class="charts-grid" id="chartsGrid"></div>
 <section class="panel" id="kpiPanel" style="margin-top:14px">
           <h2>Radio KPI Summary</h2>

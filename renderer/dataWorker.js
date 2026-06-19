@@ -68,6 +68,27 @@ function filterPoints(points, filters) {
   return out;
 }
 
+function thinClusteredPoints(arr, gridKm, keepEvery) {
+  if (!Array.isArray(arr) || arr.length === 0) return [];
+  const cellSizeDeg = gridKm / 111; // ~111 km per degree of latitude — good enough for grid bucketing
+  const buckets = new Map();
+  for (const p of arr) {
+    const lat = Number(p?.latitude ?? p?.lat);
+    const lon = Number(p?.longitude ?? p?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const key = `${Math.round(lat / cellSizeDeg)}:${Math.round(lon / cellSizeDeg)}`;
+    let bucket = buckets.get(key);
+    if (!bucket) { bucket = []; buckets.set(key, bucket); }
+    bucket.push(p);
+  }
+  const out = [];
+  for (const bucket of buckets.values()) {
+    if (bucket.length <= 1) { out.push(...bucket); continue; }
+    for (let i = 0; i < bucket.length; i += keepEvery) out.push(bucket[i]);
+  }
+  return out;
+}
+
 function prepareMap(payload) {
   const qualityRows = Array.isArray(payload?.qualityRows) ? payload.qualityRows : [];
   const dbRows = Array.isArray(payload?.dbRows) ? payload.dbRows : [];
@@ -80,8 +101,10 @@ function prepareMap(payload) {
 
   const handover = downsample(Array.isArray(payload?.handover) ? payload.handover : [], Number(payload?.maxHandover) || 1200);
 
-  const coll3 = downsample(Array.isArray(payload?.coll3) ? payload.coll3 : [], Number(payload?.maxCollisions) || 1200);
-  const coll6 = downsample(Array.isArray(payload?.coll6) ? payload.coll6 : [], Number(payload?.maxCollisions) || 1200);
+  const coll3Thinned = thinClusteredPoints(Array.isArray(payload?.coll3) ? payload.coll3 : [], 1, 60);
+  const coll6Thinned = thinClusteredPoints(Array.isArray(payload?.coll6) ? payload.coll6 : [], 1, 60);
+  const coll3 = downsample(coll3Thinned, Number(payload?.maxCollisions) || 1200);
+  const coll6 = downsample(coll6Thinned, Number(payload?.maxCollisions) || 1200);
 
   const bs = downsample(Array.isArray(payload?.bs) ? payload.bs : [], Number(payload?.maxBs) || 600);
 
@@ -273,7 +296,21 @@ function prepareDashboard(payload) {
     if (!p.ci || p.ci === '0') continue;
     cellCount[p.ci] = (cellCount[p.ci] || 0) + 1;
   }
-  const topCells = Object.entries(cellCount).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  // Average signal quality per operator — lets the dashboard compare operators directly
+  // instead of listing the busiest cells, which mostly reflects route dwell time, not quality.
+  const opRsrpSums = {};
+  for (const p of parsed) {
+    if (!Number.isFinite(p.rsrp) || p.rsrp >= -10) continue;
+    const key = p.mnc && p.mnc !== '0' ? p.mnc : 'Н/Д';
+    let s = opRsrpSums[key];
+    if (!s) { s = { sum: 0, count: 0 }; opRsrpSums[key] = s; }
+    s.sum += p.rsrp;
+    s.count += 1;
+  }
+  const avgRsrpByOperator = Object.entries(opRsrpSums)
+    .map(([mnc, s]) => ({ mnc, avgRsrp: s.sum / s.count, count: s.count }))
+    .sort((a, b) => b.count - a.count);
 
   // RSRP quality buckets — same thresholds as map heat coloring (rsrpZoneColor)
   const qualityBuckets = { 'Отличное': 0, 'Хорошее': 0, 'Удовлетворительное': 0, 'Слабое': 0 };
@@ -308,7 +345,7 @@ function prepareDashboard(payload) {
     uniqueCells: Object.keys(cellCount).length,
     techCount,
     opCount,
-    topCells,
+    avgRsrpByOperator,
     qualityBuckets,
     qualityKnown,
     trend,
