@@ -496,13 +496,8 @@ main.overview-active { overflow: hidden; padding-bottom: 0; }
   margin-bottom: 14px;
   flex-shrink: 0;
 }
-#tcpPanel h2 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
 #tcpPanel h2 #reconnectTunnel {
+  margin-left: auto;
   font-size: 12px;
   padding: 4px 10px;
 }

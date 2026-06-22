@@ -870,19 +870,26 @@ function redrawMap(data) {
     if (isValidLatLon(a[0], a[1]) && isValidLatLon(b[0], b[1]) && distKm(a[0], a[1], b[0], b[1]) <= 3.0) L.polyline([a, b], { color: '#ff7f50', weight: 2, opacity: 0.8 }).addTo(state.layers.handover);
   });
 
+  const findField = (o, pred) => {
+    const keys = Object.keys(o || {});
+    const k = keys.find(pred);
+    return k != null ? o[k] : undefined;
+  };
+  const hasAll = (key, ...subs) => subs.every((s) => key.includes(s));
+
   const describeCollision = (p, modLabel, lat, lon) => {
     const lines = [`Коллизия PCI ${modLabel}`];
-    const ci = p.ci ?? p.cellId ?? p.cell_id;
-    const pci = p.pci ?? p.phys_cell_id ?? p.physCellId;
+    const pci = findField(p, (k) => { const l = k.toLowerCase(); return hasAll(l, 'pci') && !l.includes('neighbor'); });
+    const neighborPci = findField(p, (k) => { const l = k.toLowerCase(); return hasAll(l, 'pci', 'neighbor'); });
+    const ci = findField(p, (k) => { const l = k.toLowerCase(); return (hasAll(l, 'cell', 'id') || l === 'ci') && !l.includes('neighbor'); }) ?? p.ci;
+    const neighborCi = findField(p, (k) => { const l = k.toLowerCase(); return (hasAll(l, 'cell', 'id') || l.includes('ci')) && l.includes('neighbor'); });
     const mnc = p.mnc;
-    const neighborCi = p.neighborCi ?? p.neighbor_ci ?? p.neighborCellId;
-    const neighborPci = p.neighborPci ?? p.neighbor_pci;
-    if (ci != null) lines.push(`CI: ${esc(ci)}`);
     if (pci != null) lines.push(`PCI: ${esc(pci)}`);
-    if (mnc != null) lines.push(`MNC: ${esc(mnc)}`);
-    if (neighborCi != null) lines.push(`Соседняя CI: ${esc(neighborCi)}`);
     if (neighborPci != null) lines.push(`Соседний PCI: ${esc(neighborPci)}`);
-    lines.push(`${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+    if (ci != null) lines.push(`CI: ${esc(ci)}`);
+    if (neighborCi != null) lines.push(`Соседняя CI: ${esc(neighborCi)}`);
+    if (mnc != null) lines.push(`MNC: ${esc(mnc)}`);
+    if (pci == null && neighborPci == null) lines.push(`${lat.toFixed(5)}, ${lon.toFixed(5)}`);
     return lines.join('<br/>');
   };
 

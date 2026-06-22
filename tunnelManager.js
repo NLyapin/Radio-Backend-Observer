@@ -165,18 +165,32 @@ class TunnelManager {
     });
   }
 
-  exec(remoteCmd) {
+  exec(remoteCmd, timeoutMs = 20000) {
     return new Promise((resolve, reject) => {
       if (!this.client) {
         return reject(new Error('SSH tunnel is not connected. Please connect first.'));
       }
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(`Remote command timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
       this.client.exec(remoteCmd, (err, stream) => {
-        if (err) return reject(err);
+        if (err) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          return reject(err);
+        }
         let stdout = '';
         let stderr = '';
         stream.on('data', (data) => { stdout += String(data); });
         stream.stderr.on('data', (data) => { stderr += String(data); });
         stream.on('close', (code) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
           if (code !== 0 && !stdout.trim()) {
             reject(new Error(`Remote command failed (exit ${code}): ${stderr.trim() || 'no output'}`));
           } else {
